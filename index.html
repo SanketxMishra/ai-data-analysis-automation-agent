@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Data Analyst</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .loader {
+            border-top-color: #3B82F6;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans">
+
+    <div class="max-w-4xl mx-auto p-6">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-blue-600 mb-2">AI Data Analyst</h1>
+            <p class="text-gray-600">Upload your data and questions, get automated Python analysis.</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-8">
+            <form id="analysisForm" class="space-y-6">
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">OpenAI API Key</label>
+                    <div class="relative">
+                        <input type="password" id="apiKey" name="api_key" required
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            placeholder="sk-...">
+                        <i class="fas fa-key absolute right-4 top-3.5 text-gray-400"></i>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Your key is sent securely to the backend and used only for this session.</p>
+                </div>
+
+                <div class="p-4 border-2 border-dashed border-gray-200 rounded-lg hover:border-blue-400 transition bg-gray-50">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Questions File (questions.txt)</label>
+                    <input type="file" id="questionFile" name="questions.txt" accept=".txt" required
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+
+                <div class="p-4 border-2 border-dashed border-gray-200 rounded-lg hover:border-blue-400 transition bg-gray-50">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Data Files (CSV, JSON, Images, etc.)</label>
+                    <input type="file" id="dataFiles" multiple
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+                </div>
+
+                <button type="submit" id="submitBtn" 
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition transform hover:scale-[1.01] shadow-md flex justify-center items-center gap-2">
+                    <span>Run Analysis</span>
+                    <i class="fas fa-rocket"></i>
+                </button>
+            </form>
+        </div>
+
+        <div id="loading" class="hidden text-center py-10">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4 mx-auto"></div>
+            <h2 class="text-xl font-semibold text-gray-700">Analyzing Data...</h2>
+            <p class="text-gray-500">Generating Python scripts and visualizations. This may take a minute.</p>
+        </div>
+
+        <div id="error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline" id="errorText"></span>
+        </div>
+
+        <div id="resultsArea" class="hidden space-y-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">Analysis Results</h2>
+            <div id="dynamicContent" class="space-y-6">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('analysisForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // UI Reset
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const resultsArea = document.getElementById('resultsArea');
+            const errorDiv = document.getElementById('error');
+            const contentDiv = document.getElementById('dynamicContent');
+            
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-50');
+            loading.classList.remove('hidden');
+            resultsArea.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+            contentDiv.innerHTML = '';
+
+            // Prepare Data
+            const formData = new FormData();
+            formData.append('api_key', document.getElementById('apiKey').value);
+            formData.append('questions.txt', document.getElementById('questionFile').files[0]);
+            
+            const dataFiles = document.getElementById('dataFiles').files;
+            for (let i = 0; i < dataFiles.length; i++) {
+                formData.append(dataFiles[i].name, dataFiles[i]);
+            }
+
+            try {
+                const response = await fetch('/api', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) throw new Error(result.detail || result.error || 'Unknown error occurred');
+
+                // Render Results
+                renderResults(result);
+                resultsArea.classList.remove('hidden');
+
+            } catch (err) {
+                document.getElementById('errorText').textContent = err.message;
+                errorDiv.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50');
+            }
+        });
+
+        function renderResults(data) {
+            const container = document.getElementById('dynamicContent');
+
+            // Handle root level error
+            if (data.error) {
+                const errBox = document.createElement('div');
+                errBox.className = "p-4 bg-red-50 text-red-700 rounded border border-red-200";
+                errBox.textContent = data.error;
+                container.appendChild(errBox);
+                return;
+            }
+
+            // Iterate through JSON keys
+            for (const [key, value] of Object.entries(data)) {
+                const card = document.createElement('div');
+                card.className = "bg-white p-6 rounded-lg shadow border border-gray-100";
+
+                const title = document.createElement('h3');
+                title.className = "text-lg font-bold text-blue-800 mb-3 capitalize";
+                title.textContent = key.replace(/_/g, ' ');
+                card.appendChild(title);
+
+                // Detect if value is likely a Base64 Image
+                if (typeof value === 'string' && (value.startsWith('iVBOR') || value.length > 1000 && !value.includes(' '))) {
+                    const img = document.createElement('img');
+                    img.src = `data:image/png;base64,${value}`;
+                    img.className = "max-w-full h-auto rounded border border-gray-200";
+                    card.appendChild(img);
+                } 
+                // Detect Errors in specific keys
+                else if (key.endsWith('_error')) {
+                    const errMsg = document.createElement('div');
+                    errMsg.className = "text-red-600 font-mono text-sm bg-red-50 p-3 rounded";
+                    errMsg.textContent = value;
+                    card.appendChild(errMsg);
+                }
+                // Standard Text/Object/Array
+                else {
+                    const pre = document.createElement('pre');
+                    pre.className = "bg-gray-800 text-green-400 p-4 rounded text-sm overflow-x-auto";
+                    if (typeof value === 'object') {
+                        pre.textContent = JSON.stringify(value, null, 2);
+                    } else {
+                        pre.textContent = value;
+                    }
+                    card.appendChild(pre);
+                }
+
+                container.appendChild(card);
+            }
+        }
+    </script>
+</body>
+</html>
